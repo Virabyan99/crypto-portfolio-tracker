@@ -12,6 +12,7 @@ export default function CryptoChart({ data }: CryptoChartProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; price: number; date: string } | null>(null);
+  const [selectedDomain, setSelectedDomain] = useState<[Date, Date] | null>(null);
   const [dimensions, setDimensions] = useState<{ width: number; height: number }>({ width: 800, height: 400 });
 
   useEffect(() => {
@@ -41,7 +42,7 @@ export default function CryptoChart({ data }: CryptoChartProps) {
 
     // Define Scales
     const xScale = d3.scaleTime()
-      .domain(d3.extent(formattedData, d => d.time) as [Date, Date])
+      .domain(selectedDomain || (d3.extent(formattedData, d => d.time) as [Date, Date]))
       .range([margin.left, width - margin.right]);
 
     const yScale = d3.scaleLinear()
@@ -58,7 +59,7 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .style("padding", "10px");
 
     // Remove previous elements
-    svg.selectAll(".price-line, .x-axis, .y-axis, .grid-line, .tooltip-line, defs").remove();
+    svg.selectAll(".price-line, .x-axis, .y-axis, .grid-line, .tooltip-line, .brush, defs").remove();
 
     // Add Gradient for Line
     const gradient = svg.append("defs")
@@ -114,6 +115,20 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .attr("stroke-dasharray", "4")
       .style("visibility", "hidden");
 
+    // Brush Selection
+    const brush = d3.brushX()
+      .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]])
+      .on("end", (event) => {
+        if (!event.selection) return;
+        const [x0, x1] = event.selection;
+        const newDomain = [xScale.invert(x0), xScale.invert(x1)] as [Date, Date];
+        setSelectedDomain(newDomain);
+      });
+
+    svg.append("g")
+      .attr("class", "brush")
+      .call(brush);
+
     // Mouse Interaction
     svg.on("mousemove", (event) => {
       const [mouseX] = d3.pointer(event);
@@ -145,7 +160,7 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       tooltipLine.style("visibility", "hidden");
     });
 
-  }, [data, dimensions]);
+  }, [data, dimensions, selectedDomain]);
 
   return (
     <div ref={wrapperRef} className="relative w-full max-w-4xl mx-auto p-4">
@@ -168,6 +183,16 @@ export default function CryptoChart({ data }: CryptoChartProps) {
             <span className="text-blue-600 font-medium">Price: ${tooltip.price.toFixed(2)}</span>
           </PopoverContent>
         </Popover>
+      )}
+
+      {/* Reset Zoom Button */}
+      {selectedDomain && (
+        <button
+          className="absolute top-5 right-5 bg-red-500 text-white px-3 py-1 rounded-3xl cursor-pointer"
+          onClick={() => setSelectedDomain(null)}
+        >
+          X
+        </button>
       )}
     </div>
   );
