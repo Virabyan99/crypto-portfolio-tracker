@@ -16,8 +16,8 @@ export default function Home() {
       .then(res => res.json())
       .then(data => {
         const formattedData = data.prices.map((d: [number, number]) => ({
-          time: d[0],  // Timestamp
-          price: d[1]  // Price
+          time: d[0],  
+          price: d[1]
         }));
         setCryptoData(formattedData);
       })
@@ -25,8 +25,9 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Bitcoin Price Chart</h1>
+    <div className="max-w-5xl mx-auto px-6 py-8">
+      <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">📈 Bitcoin Price Chart</h1>
+      <p className="text-gray-600 text-center mb-6">Track the latest trends in Bitcoin prices over the past 7 days.</p>
       <CryptoChart data={cryptoData} />
     </div>
   );
