@@ -23,6 +23,9 @@ export default function CryptoChart({ data }: CryptoChartProps) {
     height: 400,
   });
 
+  // Ref to control fade-in on initial mount (triggered by coin switch)
+  const initialLoadRef = useRef(true);
+
   // Handle resizing
   useEffect(() => {
     if (!wrapperRef.current) return;
@@ -37,7 +40,7 @@ export default function CryptoChart({ data }: CryptoChartProps) {
     return () => window.removeEventListener("resize", updateDimensions);
   }, []);
 
-  // Render & update the chart with animated transitions
+  // Render & update the chart with animated transitions and fade‑in effect on mount
   useEffect(() => {
     if (!svgRef.current || data.length === 0) return;
 
@@ -53,7 +56,9 @@ export default function CryptoChart({ data }: CryptoChartProps) {
     // Define scales
     const xScale = d3
       .scaleTime()
-      .domain(selectedDomain || (d3.extent(formattedData, (d) => d.time) as [Date, Date]))
+      .domain(
+        selectedDomain || (d3.extent(formattedData, (d) => d.time) as [Date, Date])
+      )
       .range([margin.left, width - margin.right]);
 
     const yScale = d3
@@ -74,6 +79,15 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .style("border-radius", "10px")
       .style("box-shadow", "0 4px 10px rgba(0, 0, 0, 0.1)")
       .style("padding", "10px");
+
+    // On initial mount (i.e. when coin changes), fade in the entire chart
+    if (initialLoadRef.current) {
+      svg.style("opacity", 0)
+        .transition()
+        .duration(500)
+        .style("opacity", 1);
+      initialLoadRef.current = false;
+    }
 
     // Remove previous elements except the price line to enable smooth transitions
     svg.selectAll(".x-axis, .y-axis, .grid-line, .tooltip-line, .brush, defs").remove();
@@ -97,7 +111,7 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .y((d) => yScale(d.price))
       .curve(d3.curveMonotoneX);
 
-    // Bind data & animate the line chart using transitions (shorter duration)
+    // Bind data & animate the line chart using transitions (200ms for live updates)
     const linePath = svg.selectAll(".price-line").data([formattedData]);
     linePath
       .join(

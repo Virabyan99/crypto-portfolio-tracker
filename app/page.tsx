@@ -8,17 +8,28 @@ interface CryptoData {
   price: number;
 }
 
+const COINS = [
+  { id: "bitcoin", name: "Bitcoin (BTC)" },
+  { id: "ethereum", name: "Ethereum (ETH)" },
+  { id: "dogecoin", name: "Dogecoin (DOGE)" },
+  { id: "cardano", name: "Cardano (ADA)" },
+  { id: "solana", name: "Solana (SOL)" }
+];
+
 // Mapping to convert coin names to Binance symbols
 const symbolMap: Record<string, string> = {
   bitcoin: "btc",
   ethereum: "eth",
+  dogecoin: "doge",
+  cardano: "ada",
+  solana: "sol"
 };
 
 export default function Home() {
   const [cryptoData, setCryptoData] = useState<CryptoData[]>([]);
-  const [coin, setCoin] = useState("bitcoin");
+  const [coin, setCoin] = useState(COINS[0].id);
 
-  // Fetch historical data (last 7 days) from CoinGecko on coin change
+  // Fetch historical data (last 7 days) from CoinGecko when coin changes
   useEffect(() => {
     fetch(`https://api.coingecko.com/api/v3/coins/${coin}/market_chart?vs_currency=usd&days=7`)
       .then((res) => res.json())
@@ -59,20 +70,25 @@ export default function Home() {
         Live {coin.toUpperCase()} Price Chart (Last 7 Days)
       </h1>
       <div className="mb-4">
-        <button
-          onClick={() => setCoin("bitcoin")}
-          className="mr-2 px-3 py-1 bg-gray-200 rounded"
+        <label className="text-sm font-semibold mr-2">Select Coin:</label>
+        <select
+          className="border bg-white rounded px-3 py-1 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all"
+          value={coin}
+          onChange={(e) => setCoin(e.target.value)}
         >
-          Bitcoin
-        </button>
-        <button
-          onClick={() => setCoin("ethereum")}
-          className="px-3 py-1 bg-gray-200 rounded"
-        >
-          Ethereum
-        </button>
+          {COINS.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
       </div>
-      <CryptoChart data={cryptoData} />
+      {cryptoData.length === 0 ? (
+        <p className="text-gray-500 text-sm">Loading price data...</p>
+      ) : (
+        // Pass the coin as key so that switching coins remounts the chart for a fresh fade‑in
+        <CryptoChart data={cryptoData} key={coin} />
+      )}
     </div>
   );
 }
