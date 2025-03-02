@@ -15,10 +15,10 @@ export default function CryptoChart({ data }: CryptoChartProps) {
   const [selectedDomain, setSelectedDomain] = useState<[Date, Date] | null>(null);
   const [dimensions, setDimensions] = useState<{ width: number; height: number }>({ width: 800, height: 400 });
 
+  // Handle resizing
   useEffect(() => {
-    if (!svgRef.current || !wrapperRef.current || data.length === 0) return;
+    if (!wrapperRef.current) return;
 
-    // Handle resizing
     const updateDimensions = () => {
       const width = wrapperRef.current?.clientWidth || 800;
       setDimensions({ width, height: 400 });
@@ -29,6 +29,7 @@ export default function CryptoChart({ data }: CryptoChartProps) {
     return () => window.removeEventListener("resize", updateDimensions);
   }, []);
 
+  // Render & update the chart with animated transitions
   useEffect(() => {
     if (!svgRef.current || data.length === 0) return;
 
@@ -58,38 +59,48 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .style("box-shadow", "0 4px 10px rgba(0, 0, 0, 0.1)")
       .style("padding", "10px");
 
-    // Remove previous elements
-    svg.selectAll(".price-line, .x-axis, .y-axis, .grid-line, .tooltip-line, .brush, defs").remove();
+    // Remove previous elements except the price line to enable smooth transitions
+    svg.selectAll(".x-axis, .y-axis, .grid-line, .tooltip-line, .brush, defs").remove();
 
-    // Add Gradient for Line
-    const gradient = svg.append("defs")
-      .append("linearGradient")
+    // Add Gradient for Line (recreate defs each time for simplicity)
+    const defs = svg.append("defs");
+    const gradient = defs.append("linearGradient")
       .attr("id", "lineGradient")
       .attr("x1", "0%")
       .attr("x2", "100%")
       .attr("y1", "0%")
       .attr("y2", "0%");
-
     gradient.append("stop").attr("offset", "0%").attr("stop-color", "#4f46e5");
     gradient.append("stop").attr("offset", "100%").attr("stop-color", "#9333ea");
 
-    // Append Line Path
-    svg.append("path")
-      .datum(formattedData)
-      .attr("class", "price-line")
-      .attr("d", d3.line<{ time: Date; price: number }>()
-        .x(d => xScale(d.time))
-        .y(d => yScale(d.price))
-        .curve(d3.curveMonotoneX))
-      .attr("fill", "none")
-      .attr("stroke", "url(#lineGradient)")
-      .attr("stroke-width", 3);
+    // Define the Line Generator
+    const lineGenerator = d3.line<{ time: Date; price: number }>()
+      .x(d => xScale(d.time))
+      .y(d => yScale(d.price))
+      .curve(d3.curveMonotoneX);
 
-    // Append X Axis
+    // Bind Data & Animate the Line Chart using transitions
+    const linePath = svg.selectAll(".price-line").data([formattedData]);
+    linePath.join(
+      enter => enter.append("path")
+        .attr("class", "price-line")
+        .attr("fill", "none")
+        .attr("stroke", "url(#lineGradient)")
+        .attr("stroke-width", 3)
+        // Set initial state for entering element
+        .attr("d", lineGenerator),
+      update => update,
+      exit => exit.remove()
+    )
+      .transition()
+      .duration(1000)
+      .attr("d", lineGenerator);
+
+    // Append X Axis with animation-friendly transform
     svg.append("g")
       .attr("class", "x-axis")
       .attr("transform", `translate(0, ${height - margin.bottom})`)
-      .call(d3.axisBottom(xScale).ticks(5).tickFormat((d: Date | d3.NumberValue) => 
+      .call(d3.axisBottom(xScale).ticks(5).tickFormat((d: Date | d3.NumberValue) =>
         d3.timeFormat("%b %d")(d instanceof Date ? d : new Date(d as number))
       ))
       .selectAll("text")
@@ -107,7 +118,7 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .attr("fill", "#374151")
       .attr("font-weight", "bold");
 
-    // Tooltip line
+    // Tooltip line for mouse interaction
     const tooltipLine = svg.append("line")
       .attr("class", "tooltip-line")
       .attr("stroke", "#9333ea")
@@ -115,7 +126,7 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .attr("stroke-dasharray", "4")
       .style("visibility", "hidden");
 
-    // Brush Selection
+    // Brush Selection for zooming
     const brush = d3.brushX()
       .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]])
       .on("end", (event) => {
@@ -124,12 +135,11 @@ export default function CryptoChart({ data }: CryptoChartProps) {
         const newDomain = [xScale.invert(x0), xScale.invert(x1)] as [Date, Date];
         setSelectedDomain(newDomain);
       });
-
     svg.append("g")
       .attr("class", "brush")
       .call(brush);
 
-    // Mouse Interaction
+    // Mouse Interaction for Tooltip updates
     svg.on("mousemove", (event) => {
       const [mouseX] = d3.pointer(event);
 
@@ -154,7 +164,7 @@ export default function CryptoChart({ data }: CryptoChartProps) {
         .style("visibility", "visible");
     });
 
-    // Hide tooltip on mouse leave
+    // Hide tooltip when mouse leaves the SVG area
     svg.on("mouseleave", () => {
       setTooltip(null);
       tooltipLine.style("visibility", "hidden");
@@ -179,7 +189,8 @@ export default function CryptoChart({ data }: CryptoChartProps) {
             />
           </PopoverTrigger>
           <PopoverContent className="bg-white border border-gray-200 p-3 rounded-lg shadow-md text-gray-800 text-sm">
-            <strong>{tooltip.date}</strong><br />
+            <strong>{tooltip.date}</strong>
+            <br />
             <span className="text-blue-600 font-medium">Price: ${tooltip.price.toFixed(2)}</span>
           </PopoverContent>
         </Popover>
