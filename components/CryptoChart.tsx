@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface CryptoChartProps {
   data: { time: number; price: number }[];
@@ -9,12 +10,28 @@ interface CryptoChartProps {
 
 export default function CryptoChart({ data }: CryptoChartProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; price: number; date: string } | null>(null);
+  const [dimensions, setDimensions] = useState<{ width: number; height: number }>({ width: 800, height: 400 });
+
+  useEffect(() => {
+    if (!svgRef.current || !wrapperRef.current || data.length === 0) return;
+
+    // Handle resizing
+    const updateDimensions = () => {
+      const width = wrapperRef.current?.clientWidth || 800;
+      setDimensions({ width, height: 400 });
+    };
+
+    updateDimensions();
+    window.addEventListener("resize", updateDimensions);
+    return () => window.removeEventListener("resize", updateDimensions);
+  }, []);
 
   useEffect(() => {
     if (!svgRef.current || data.length === 0) return;
 
-    const width = 800; // Increased for better visualization
-    const height = 400;
+    const { width, height } = dimensions;
     const margin = { top: 30, right: 40, bottom: 50, left: 60 };
 
     const formattedData = data.map(d => ({
@@ -29,11 +46,11 @@ export default function CryptoChart({ data }: CryptoChartProps) {
 
     const yScale = d3.scaleLinear()
       .domain([d3.min(formattedData, d => d.price) as number, d3.max(formattedData, d => d.price) as number])
-      .nice() // Round up min/max for better axis readability
+      .nice()
       .range([height - margin.bottom, margin.top]);
 
     const svg = d3.select(svgRef.current)
-      .attr("width", "100%")  // Responsive width
+      .attr("width", width)
       .attr("height", height)
       .style("background", "white")
       .style("border-radius", "10px")
@@ -41,7 +58,7 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .style("padding", "10px");
 
     // Remove previous elements
-    svg.selectAll(".price-line, .x-axis, .y-axis, .x-label, .y-label, .grid-line, defs").remove();
+    svg.selectAll(".price-line, .x-axis, .y-axis, .grid-line, .tooltip-line, defs").remove();
 
     // Add Gradient for Line
     const gradient = svg.append("defs")
@@ -52,13 +69,8 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .attr("y1", "0%")
       .attr("y2", "0%");
 
-    gradient.append("stop")
-      .attr("offset", "0%")
-      .attr("stop-color", "#4f46e5"); // Indigo color
-
-    gradient.append("stop")
-      .attr("offset", "100%")
-      .attr("stop-color", "#9333ea"); // Purple color
+    gradient.append("stop").attr("offset", "0%").attr("stop-color", "#4f46e5");
+    gradient.append("stop").attr("offset", "100%").attr("stop-color", "#9333ea");
 
     // Append Line Path
     svg.append("path")
@@ -69,23 +81,8 @@ export default function CryptoChart({ data }: CryptoChartProps) {
         .y(d => yScale(d.price))
         .curve(d3.curveMonotoneX))
       .attr("fill", "none")
-      .attr("stroke", "url(#lineGradient)") // Apply gradient
+      .attr("stroke", "url(#lineGradient)")
       .attr("stroke-width", 3);
-
-    // Add Grid Lines
-    svg.append("g")
-      .attr("class", "grid-line")
-      .attr("transform", `translate(0,${height - margin.bottom})`)
-      .call(d3.axisBottom(xScale).tickSize(-height + margin.top + margin.bottom).tickFormat(() => ""))
-      .selectAll("line")
-      .attr("stroke", "#e5e7eb"); // Light gray
-
-    svg.append("g")
-      .attr("class", "grid-line")
-      .attr("transform", `translate(${margin.left},0)`)
-      .call(d3.axisLeft(yScale).tickSize(-width + margin.left + margin.right).tickFormat(() => ""))
-      .selectAll("line")
-      .attr("stroke", "#e5e7eb"); // Light gray
 
     // Append X Axis
     svg.append("g")
@@ -97,7 +94,7 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .selectAll("text")
       .attr("transform", "rotate(-30)")
       .attr("text-anchor", "end")
-      .attr("fill", "#374151") // Dark gray text
+      .attr("fill", "#374151")
       .attr("font-weight", "bold");
 
     // Append Y Axis
@@ -106,35 +103,72 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .attr("transform", `translate(${margin.left}, 0)`)
       .call(d3.axisLeft(yScale).ticks(5))
       .selectAll("text")
-      .attr("fill", "#374151") // Dark gray text
+      .attr("fill", "#374151")
       .attr("font-weight", "bold");
 
-    // X-Axis Label
-    svg.append("text")
-      .attr("class", "x-label")
-      .attr("x", width / 2)
-      .attr("y", height - 10)
-      .attr("text-anchor", "middle")
-      .attr("font-size", "14px")
-      .attr("fill", "#374151")
-      .text("Date");
+    // Tooltip line
+    const tooltipLine = svg.append("line")
+      .attr("class", "tooltip-line")
+      .attr("stroke", "#9333ea")
+      .attr("stroke-width", 2)
+      .attr("stroke-dasharray", "4")
+      .style("visibility", "hidden");
 
-    // Y-Axis Label
-    svg.append("text")
-      .attr("class", "y-label")
-      .attr("x", -height / 2)
-      .attr("y", 20)
-      .attr("text-anchor", "middle")
-      .attr("transform", "rotate(-90)")
-      .attr("font-size", "14px")
-      .attr("fill", "#374151")
-      .text("Price (USD)");
+    // Mouse Interaction
+    svg.on("mousemove", (event) => {
+      const [mouseX] = d3.pointer(event);
 
-  }, [data]);
+      // Find closest data point
+      const closestPoint = formattedData.reduce((prev, curr) =>
+        Math.abs(xScale(curr.time) - mouseX) < Math.abs(xScale(prev.time) - mouseX) ? curr : prev
+      );
+
+      setTooltip({
+        x: xScale(closestPoint.time),
+        y: yScale(closestPoint.price),
+        price: closestPoint.price,
+        date: d3.timeFormat("%b %d, %Y")(closestPoint.time)
+      });
+
+      // Position tooltip line
+      tooltipLine
+        .attr("x1", xScale(closestPoint.time))
+        .attr("x2", xScale(closestPoint.time))
+        .attr("y1", margin.top)
+        .attr("y2", height - margin.bottom)
+        .style("visibility", "visible");
+    });
+
+    // Hide tooltip on mouse leave
+    svg.on("mouseleave", () => {
+      setTooltip(null);
+      tooltipLine.style("visibility", "hidden");
+    });
+
+  }, [data, dimensions]);
 
   return (
-    <div className="flex justify-center items-center w-full">
-      <svg ref={svgRef} className="block"></svg>
+    <div ref={wrapperRef} className="relative w-full max-w-4xl mx-auto p-4">
+      <svg ref={svgRef} className="block w-full"></svg>
+
+      {/* ShadCN Popover for Tooltip */}
+      {tooltip && (
+        <Popover open>
+          <PopoverTrigger asChild>
+            <div
+              className="absolute"
+              style={{
+                top: tooltip.y - 30,
+                left: tooltip.x + 10
+              }}
+            />
+          </PopoverTrigger>
+          <PopoverContent className="bg-white border border-gray-200 p-3 rounded-lg shadow-md text-gray-800 text-sm">
+            <strong>{tooltip.date}</strong><br />
+            <span className="text-blue-600 font-medium">Price: ${tooltip.price.toFixed(2)}</span>
+          </PopoverContent>
+        </Popover>
+      )}
     </div>
   );
 }
