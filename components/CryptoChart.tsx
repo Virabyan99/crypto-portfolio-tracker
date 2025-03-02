@@ -75,10 +75,9 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .select(svgRef.current)
       .attr("width", width)
       .attr("height", height)
-      .style("background", "white")
-      .style("border-radius", "10px")
-      .style("box-shadow", "0 4px 10px rgba(0, 0, 0, 0.1)")
-      .style("padding", "10px");
+      // Dark chart background
+      .style("background", "#1f2937") // Tailwind's gray-800
+      .style("border-radius", "8px");
 
     // On initial mount (i.e. when coin changes), fade in the entire chart
     if (initialLoadRef.current) {
@@ -92,7 +91,7 @@ export default function CryptoChart({ data }: CryptoChartProps) {
     // Remove previous elements except the price line to enable smooth transitions
     svg.selectAll(".x-axis, .y-axis, .grid-line, .tooltip-line, .brush, defs").remove();
 
-    // Add gradient for the line (recreate defs each time for simplicity)
+    // Add gradient for the line
     const defs = svg.append("defs");
     const gradient = defs
       .append("linearGradient")
@@ -101,8 +100,9 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .attr("x2", "100%")
       .attr("y1", "0%")
       .attr("y2", "0%");
-    gradient.append("stop").attr("offset", "0%").attr("stop-color", "#4f46e5");
-    gradient.append("stop").attr("offset", "100%").attr("stop-color", "#9333ea");
+    // Example teal -> blue gradient
+    gradient.append("stop").attr("offset", "0%").attr("stop-color", "#14b8a6"); // teal-500
+    gradient.append("stop").attr("offset", "100%").attr("stop-color", "#3b82f6"); // blue-500
 
     // Define the line generator
     const lineGenerator = d3
@@ -111,7 +111,7 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .y((d) => yScale(d.price))
       .curve(d3.curveMonotoneX);
 
-    // Bind data & animate the line chart using transitions (200ms for live updates)
+    // Draw & animate the line chart (200ms for new data points)
     const linePath = svg.selectAll(".price-line").data([formattedData]);
     linePath
       .join(
@@ -131,40 +131,52 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .ease(d3.easeLinear)
       .attr("d", lineGenerator);
 
-    // Append X Axis
+    // X Axis
+    const xAxis = d3.axisBottom(xScale).ticks(5).tickFormat((d: Date | d3.NumberValue) =>
+      d3.timeFormat("%b %d")(d instanceof Date ? d : new Date(d as number))
+    );
     svg
       .append("g")
       .attr("class", "x-axis")
       .attr("transform", `translate(0, ${height - margin.bottom})`)
-      .call(
-        d3
-          .axisBottom(xScale)
-          .ticks(5)
-          .tickFormat((d: Date | d3.NumberValue) =>
-            d3.timeFormat("%b %d")(d instanceof Date ? d : new Date(d as number))
-          )
-      )
+      .call(xAxis as any)
       .selectAll("text")
       .attr("transform", "rotate(-30)")
       .attr("text-anchor", "end")
-      .attr("fill", "#374151")
+      .attr("fill", "#e5e7eb") // text-gray-200
       .attr("font-weight", "bold");
 
-    // Append Y Axis
+    // Y Axis
+    const yAxis = d3.axisLeft(yScale).ticks(5);
     svg
       .append("g")
       .attr("class", "y-axis")
       .attr("transform", `translate(${margin.left}, 0)`)
-      .call(d3.axisLeft(yScale).ticks(5))
+      .call(yAxis as any)
       .selectAll("text")
-      .attr("fill", "#374151")
+      .attr("fill", "#e5e7eb")
       .attr("font-weight", "bold");
+
+    // Optional grid lines (if desired)
+    /*
+    svg.selectAll("line.grid-line")
+      .data(xScale.ticks(5))
+      .join("line")
+      .attr("class", "grid-line")
+      .attr("x1", (d) => xScale(d))
+      .attr("x2", (d) => xScale(d))
+      .attr("y1", margin.top)
+      .attr("y2", height - margin.bottom)
+      .attr("stroke", "#374151")
+      .attr("stroke-width", 1)
+      .attr("stroke-dasharray", "2,2");
+    */
 
     // Tooltip line for mouse interaction
     const tooltipLine = svg
       .append("line")
       .attr("class", "tooltip-line")
-      .attr("stroke", "#9333ea")
+      .attr("stroke", "#9333ea") // purple-600
       .attr("stroke-width", 2)
       .attr("stroke-dasharray", "4")
       .style("visibility", "hidden");
@@ -217,7 +229,7 @@ export default function CryptoChart({ data }: CryptoChartProps) {
   }, [data, dimensions, selectedDomain]);
 
   return (
-    <div ref={wrapperRef} className="relative w-full max-w-4xl mx-auto p-4">
+    <div ref={wrapperRef} className="relative w-full mx-auto">
       <svg ref={svgRef} className="block w-full"></svg>
 
       {/* ShadCN Popover for Tooltip */}
@@ -232,10 +244,11 @@ export default function CryptoChart({ data }: CryptoChartProps) {
               }}
             />
           </PopoverTrigger>
-          <PopoverContent className="bg-white border border-gray-200 p-3 rounded-lg shadow-md text-gray-800 text-sm">
+          {/* Dark tooltip styling */}
+          <PopoverContent className="bg-gray-800 border border-gray-700 text-gray-100 p-3 rounded-lg shadow-md text-sm">
             <strong>{tooltip.date}</strong>
             <br />
-            <span className="text-blue-600 font-medium">
+            <span className="text-teal-400 font-medium">
               Price: ${tooltip.price.toFixed(2)}
             </span>
           </PopoverContent>
@@ -245,10 +258,11 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       {/* Reset Zoom Button */}
       {selectedDomain && (
         <button
-          className="absolute top-5 right-5 bg-red-500 text-white px-3 py-1 rounded-3xl cursor-pointer"
+          className="absolute top-3 right-3 bg-red-600 hover:bg-red-500 text-white 
+                     px-3 py-1 rounded-3xl cursor-pointer transition-colors"
           onClick={() => setSelectedDomain(null)}
         >
-          X
+          Reset Zoom
         </button>
       )}
     </div>
