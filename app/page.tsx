@@ -1,3 +1,4 @@
+import D3Intro from "@/components/D3Intro";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -31,7 +32,7 @@ export default async function Home() {
   return (
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-4">Top 10 Cryptocurrencies</h1>
-      
+
       <Card>
         <CardHeader>
           <CardTitle>Live Market Data</CardTitle>
@@ -67,6 +68,12 @@ export default async function Home() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Render D3 Component */}
+      <div className="mt-6">
+        <h2 className="text-2xl font-semibold mb-2">D3.js Introduction</h2>
+        <D3Intro />
+      </div>
     </div>
   );
 }
