@@ -11,9 +11,17 @@ interface CryptoChartProps {
 export default function CryptoChart({ data }: CryptoChartProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const [tooltip, setTooltip] = useState<{ x: number; y: number; price: number; date: string } | null>(null);
+  const [tooltip, setTooltip] = useState<{
+    x: number;
+    y: number;
+    price: number;
+    date: string;
+  } | null>(null);
   const [selectedDomain, setSelectedDomain] = useState<[Date, Date] | null>(null);
-  const [dimensions, setDimensions] = useState<{ width: number; height: number }>({ width: 800, height: 400 });
+  const [dimensions, setDimensions] = useState<{ width: number; height: number }>({
+    width: 800,
+    height: 400,
+  });
 
   // Handle resizing
   useEffect(() => {
@@ -36,22 +44,30 @@ export default function CryptoChart({ data }: CryptoChartProps) {
     const { width, height } = dimensions;
     const margin = { top: 30, right: 40, bottom: 50, left: 60 };
 
-    const formattedData = data.map(d => ({
+    // Convert times to JS Dates
+    const formattedData = data.map((d) => ({
       time: new Date(d.time),
-      price: d.price
+      price: d.price,
     }));
 
-    // Define Scales
-    const xScale = d3.scaleTime()
-      .domain(selectedDomain || (d3.extent(formattedData, d => d.time) as [Date, Date]))
+    // Define scales
+    const xScale = d3
+      .scaleTime()
+      .domain(selectedDomain || (d3.extent(formattedData, (d) => d.time) as [Date, Date]))
       .range([margin.left, width - margin.right]);
 
-    const yScale = d3.scaleLinear()
-      .domain([d3.min(formattedData, d => d.price) as number, d3.max(formattedData, d => d.price) as number])
+    const yScale = d3
+      .scaleLinear()
+      .domain([
+        d3.min(formattedData, (d) => d.price) ?? 0,
+        d3.max(formattedData, (d) => d.price) ?? 1,
+      ])
       .nice()
       .range([height - margin.bottom, margin.top]);
 
-    const svg = d3.select(svgRef.current)
+    // Select/initialize the SVG
+    const svg = d3
+      .select(svgRef.current)
       .attr("width", width)
       .attr("height", height)
       .style("background", "white")
@@ -62,9 +78,10 @@ export default function CryptoChart({ data }: CryptoChartProps) {
     // Remove previous elements except the price line to enable smooth transitions
     svg.selectAll(".x-axis, .y-axis, .grid-line, .tooltip-line, .brush, defs").remove();
 
-    // Add Gradient for Line (recreate defs each time for simplicity)
+    // Add gradient for the line (recreate defs each time for simplicity)
     const defs = svg.append("defs");
-    const gradient = defs.append("linearGradient")
+    const gradient = defs
+      .append("linearGradient")
       .attr("id", "lineGradient")
       .attr("x1", "0%")
       .attr("x2", "100%")
@@ -73,36 +90,46 @@ export default function CryptoChart({ data }: CryptoChartProps) {
     gradient.append("stop").attr("offset", "0%").attr("stop-color", "#4f46e5");
     gradient.append("stop").attr("offset", "100%").attr("stop-color", "#9333ea");
 
-    // Define the Line Generator
-    const lineGenerator = d3.line<{ time: Date; price: number }>()
-      .x(d => xScale(d.time))
-      .y(d => yScale(d.price))
+    // Define the line generator
+    const lineGenerator = d3
+      .line<{ time: Date; price: number }>()
+      .x((d) => xScale(d.time))
+      .y((d) => yScale(d.price))
       .curve(d3.curveMonotoneX);
 
-    // Bind Data & Animate the Line Chart using transitions
+    // Bind data & animate the line chart using transitions (shorter duration)
     const linePath = svg.selectAll(".price-line").data([formattedData]);
-    linePath.join(
-      enter => enter.append("path")
-        .attr("class", "price-line")
-        .attr("fill", "none")
-        .attr("stroke", "url(#lineGradient)")
-        .attr("stroke-width", 3)
-        // Set initial state for entering element
-        .attr("d", lineGenerator),
-      update => update,
-      exit => exit.remove()
-    )
+    linePath
+      .join(
+        (enter) =>
+          enter
+            .append("path")
+            .attr("class", "price-line")
+            .attr("fill", "none")
+            .attr("stroke", "url(#lineGradient)")
+            .attr("stroke-width", 3)
+            .attr("d", lineGenerator),
+        (update) => update,
+        (exit) => exit.remove()
+      )
       .transition()
-      .duration(1000)
+      .duration(200)
+      .ease(d3.easeLinear)
       .attr("d", lineGenerator);
 
-    // Append X Axis with animation-friendly transform
-    svg.append("g")
+    // Append X Axis
+    svg
+      .append("g")
       .attr("class", "x-axis")
       .attr("transform", `translate(0, ${height - margin.bottom})`)
-      .call(d3.axisBottom(xScale).ticks(5).tickFormat((d: Date | d3.NumberValue) =>
-        d3.timeFormat("%b %d")(d instanceof Date ? d : new Date(d as number))
-      ))
+      .call(
+        d3
+          .axisBottom(xScale)
+          .ticks(5)
+          .tickFormat((d: Date | d3.NumberValue) =>
+            d3.timeFormat("%b %d")(d instanceof Date ? d : new Date(d as number))
+          )
+      )
       .selectAll("text")
       .attr("transform", "rotate(-30)")
       .attr("text-anchor", "end")
@@ -110,7 +137,8 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .attr("font-weight", "bold");
 
     // Append Y Axis
-    svg.append("g")
+    svg
+      .append("g")
       .attr("class", "y-axis")
       .attr("transform", `translate(${margin.left}, 0)`)
       .call(d3.axisLeft(yScale).ticks(5))
@@ -119,27 +147,30 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       .attr("font-weight", "bold");
 
     // Tooltip line for mouse interaction
-    const tooltipLine = svg.append("line")
+    const tooltipLine = svg
+      .append("line")
       .attr("class", "tooltip-line")
       .attr("stroke", "#9333ea")
       .attr("stroke-width", 2)
       .attr("stroke-dasharray", "4")
       .style("visibility", "hidden");
 
-    // Brush Selection for zooming
-    const brush = d3.brushX()
-      .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]])
+    // Brush selection for zooming
+    const brush = d3
+      .brushX()
+      .extent([
+        [margin.left, margin.top],
+        [width - margin.right, height - margin.bottom],
+      ])
       .on("end", (event) => {
         if (!event.selection) return;
         const [x0, x1] = event.selection;
         const newDomain = [xScale.invert(x0), xScale.invert(x1)] as [Date, Date];
         setSelectedDomain(newDomain);
       });
-    svg.append("g")
-      .attr("class", "brush")
-      .call(brush);
+    svg.append("g").attr("class", "brush").call(brush);
 
-    // Mouse Interaction for Tooltip updates
+    // Mouse interaction for tooltip updates
     svg.on("mousemove", (event) => {
       const [mouseX] = d3.pointer(event);
 
@@ -152,7 +183,7 @@ export default function CryptoChart({ data }: CryptoChartProps) {
         x: xScale(closestPoint.time),
         y: yScale(closestPoint.price),
         price: closestPoint.price,
-        date: d3.timeFormat("%b %d, %Y")(closestPoint.time)
+        date: d3.timeFormat("%b %d, %Y")(closestPoint.time),
       });
 
       // Position tooltip line
@@ -169,7 +200,6 @@ export default function CryptoChart({ data }: CryptoChartProps) {
       setTooltip(null);
       tooltipLine.style("visibility", "hidden");
     });
-
   }, [data, dimensions, selectedDomain]);
 
   return (
@@ -184,14 +214,16 @@ export default function CryptoChart({ data }: CryptoChartProps) {
               className="absolute"
               style={{
                 top: tooltip.y - 30,
-                left: tooltip.x + 10
+                left: tooltip.x + 10,
               }}
             />
           </PopoverTrigger>
           <PopoverContent className="bg-white border border-gray-200 p-3 rounded-lg shadow-md text-gray-800 text-sm">
             <strong>{tooltip.date}</strong>
             <br />
-            <span className="text-blue-600 font-medium">Price: ${tooltip.price.toFixed(2)}</span>
+            <span className="text-blue-600 font-medium">
+              Price: ${tooltip.price.toFixed(2)}
+            </span>
           </PopoverContent>
         </Popover>
       )}
